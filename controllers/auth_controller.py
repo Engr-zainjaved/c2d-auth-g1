@@ -6,17 +6,17 @@ class AutoLogin(http.Controller):
     def auto_login(self, **kwargs):
         session_id = request.httprequest.args.get('session_id')
         if session_id:
-            return """
+            return f"""
                 <html>
                     <head>
                         <script>
-                            document.cookie = "session_id=%s; path=/; SameSite=Lax";
-                            window.location.href = "/web";
+                            document.cookie = "session_id={session_id}; path=/; SameSite=Lax";
+                            window.location.replace("/web");
                         </script>
                     </head>
                     <body>
                         <p>Logging in...</p>
                     </body>
                 </html>
-            """ % session_id
+            """
         return http.redirect_with_hash('/web/login')
