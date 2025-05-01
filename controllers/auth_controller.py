@@ -1,42 +1,33 @@
 from odoo import http
 from odoo.http import request
+from werkzeug.utils import redirect
 
 class AutoLogin(http.Controller):
+
     @http.route('/auth/bypass', type='http', auth='none', csrf=False)
     def auto_login(self, **kwargs):
         session_id = request.httprequest.args.get('session_id')
-        if session_id:
-            return f"""
-                <html>
-                    <head>
-                        <script>
-                            const sessionId = "{session_id}";
-                            const maxRetries = 10;
-                            let attempts = 0;
+        if not session_id:
+            return redirect('/web/login')
 
-                            function setCookie() {{
-                                document.cookie = "session_id=" + sessionId + "; path=/; SameSite=Lax";
-                            }}
+        # First step: set cookie and redirect to confirm
+        response = redirect(f'/auth/confirm?retry=0')
+        response.set_cookie('session_id', session_id, path='/', httponly=True)
+        return response
 
-                            function checkAndRedirect() {{
-                                const cookies = document.cookie;
-                                if (cookies.includes("session_id=" + sessionId)) {{
-                                    window.location.href = "/web";
-                                }} else if (attempts < maxRetries) {{
-                                    attempts++;
-                                    setTimeout(checkAndRedirect, 200);
-                                }} else {{
-                                    document.body.innerHTML = "<p>Failed to login. Please try again.</p>";
-                                }}
-                            }}
+    @http.route('/auth/confirm', type='http', auth='none', csrf=False)
+    def confirm(self, **kwargs):
+        retry = int(request.httprequest.args.get('retry', 0))
+        max_retries = 3
 
-                            setCookie();
-                            setTimeout(checkAndRedirect, 100);
-                        </script>
-                    </head>
-                    <body>
-                        <p>Logging in, please wait...</p>
-                    </body>
-                </html>
-            """
-        return http.redirect_with_hash('/web/login')
+        # Check if user is already authenticated
+        if request.session.uid:
+            return redirect('/web')
+
+        # Retry logic
+        if retry < max_retries:
+            # Retry after a short pause
+            return redirect(f'/auth/confirm?retry={retry + 1}')
+        else:
+            # If too many retries, go to login
+            return redirect('/web/login')
